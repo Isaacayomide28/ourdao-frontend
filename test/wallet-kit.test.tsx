@@ -180,6 +180,21 @@ describe('session restore', () => {
     expect(window.localStorage.getItem('ourdao:wallet-session')).toBeNull()
   })
 
+  it('does not expose a signed-out state during stale kit fallback (#487)', async () => {
+    window.localStorage.setItem('ourdao:wallet-session', 'kit')
+    let finishFreighter!: (value: { isAllowed: boolean }) => void
+    vi.mocked(freighter.isAllowed).mockImplementation(() => new Promise((resolve) => {
+      finishFreighter = resolve as typeof finishFreighter
+    }) as never)
+    const ref = mount(fakeKit({ getAddress: vi.fn().mockResolvedValue(null) }))
+    await waitFor(() => expect(freighter.isAllowed).toHaveBeenCalled())
+    expect(w(ref).address).toBeNull()
+    expect(w(ref).isRestoring).toBe(true)
+    await act(async () => { finishFreighter({ isAllowed: true }) })
+    await waitFor(() => expect(w(ref).address).toBe(FREIGHTER_ADDRESS))
+    expect(w(ref).isRestoring).toBe(false)
+  })
+
   it('leaves the kit unused when there is no remembered kit session', async () => {
     const kit = fakeKit()
     const ref = mount(kit)
